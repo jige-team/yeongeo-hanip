@@ -19,14 +19,15 @@ enum class PhraseSet(val label: String) {
     }
 }
 
-/** 연습할 문장 하나 */
+/** 연습할 표현 하나 */
 data class Phrase(
     val id: String,
+    /** 표현이 쓰이는 예문과 그 뜻. 표현을 고를 때의 근거로 데이터에만 둔다. 화면과 소리에는 쓰지 않는다 */
     val english: String,
     val korean: String,
-    /** 정차 중에 듣고 따라 말하는 핵심 표현 (1~4단어). 문장 전체는 주차 중에만 읽는다 */
+    /** 듣고 따라 말하는 표현 (1~4단어). 앱이 보여 주고 말하게 하는 것은 이것뿐이다 */
     val keyChunk: String,
-    /** 핵심 표현의 뜻. 정차 화면에서 표현 아래에 작게 보여 준다 */
+    /** 표현의 뜻. 표현 아래에 작게 보여 준다 */
     val keyChunkKorean: String,
     val set: PhraseSet = PhraseSet.WORK,
 )
@@ -42,8 +43,6 @@ data class Judgement(
 
 data class PracticeResult(
     val phrase: Phrase,
-    /** 정체 때처럼 핵심 표현만 연습했는지 */
-    val chunkOnly: Boolean,
     val heard: String,
     val judgement: Judgement,
 )

@@ -3,6 +3,7 @@ package app.redlight.hanmadi.domain
 import app.redlight.hanmadi.domain.model.DrivePhase
 import app.redlight.hanmadi.domain.model.DriveSignal
 import app.redlight.hanmadi.domain.model.Gear
+import app.redlight.hanmadi.domain.model.TurnSignal
 
 /**
  * 차량 신호로 운전 상태를 판단한다. 기준: docs/design/drive-phase-rules.md
@@ -71,8 +72,9 @@ class DrivePhaseDetector(private val config: Config = Config()) {
         val releasedAt = brakeReleasedAt
         if (releasedAt != null && nowMillis - releasedAt < config.autoHoldGraceMillis) return DrivePhase.ABOUT_TO_MOVE
 
-        // 회전을 기다릴 때는 맞은편 차와 보행자를 봐야 한다. 서 있어도 말하기를 쉰다
-        if (signal.turnSignalOn) return DrivePhase.TURN_WAIT
+        // 우회전 대기는 보행자를 보며 조금씩 나가는 짧은 대기라서 말하기를 쉰다.
+        // 왼쪽 깜빡이는 대부분 좌회전 신호를 기다리는 긴 빨간불이라 그대로 연습한다(비보호 좌회전은 구분하지 못한다)
+        if (signal.turnSignal == TurnSignal.RIGHT) return DrivePhase.TURN_WAIT
 
         return when {
             signal.gear == Gear.NEUTRAL || stoppedFor >= config.longStopMillis -> DrivePhase.STOPPED_LONG

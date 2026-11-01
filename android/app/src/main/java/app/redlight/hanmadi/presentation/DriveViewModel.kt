@@ -37,11 +37,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 운전 상태에 따라 듣기 → 말하기 → 읽기를 바꾼다.
+ * 운전 상태에 따라 듣기 → 말하기 → 복습을 바꾼다. 앱이 보여 주고 말하게 하는 것은 짧은 표현뿐이다.
  *
- * - 주행 중: 다음에 말할 문장을 미리 들려준다 (previewJob)
+ * - 주행 중: 다음에 말할 표현을 미리 들려준다 (previewJob)
  * - 정차 중: 한 번 말하기 연습을 돌린다 (practiceJob). 출발하면 이 Job을 취소해서 즉시 멈춘다
- * - 주차: 결과를 저장하고, 화면으로 다시 읽기를 허용한다
+ * - 주차: 결과를 저장하고, 오늘 표현을 화면으로 보며 다시 말하기를 허용한다
  */
 class DriveViewModel(
     private val vehicle: VehicleRepository,
@@ -74,6 +74,8 @@ class DriveViewModel(
     /** 틀려서 다시 말할 표현의 결과가 results 맨 끝에 있다 */
     private var hasPendingResult = false
     private var savedResultCount = 0
+    /** 마지막으로 결과를 소리로 정리해 준 때의 결과 개수. 새 결과가 없으면 P단에서 다시 말하지 않는다 */
+    private var summarizedResultCount = 0
     /** 새 운행이 막 시작됐다. 다음 미리 듣기 앞에 인사를 붙인다 */
     private var greetPending = false
     private var started = false
@@ -94,7 +96,7 @@ class DriveViewModel(
                 )
             }
             DriveIntent.PermissionsHandled -> start()
-            is DriveIntent.ReadAloud -> readAloud(intent.phraseId)
+            is DriveIntent.SayAgain -> sayAgain(intent.phraseId)
             is DriveIntent.Debug -> fakeVehicle?.set(intent.change)
             DriveIntent.StartMeasure -> startMeasure()
         }
@@ -157,7 +159,7 @@ class DriveViewModel(
             }
             // 화면만 숨긴다. 진행 중인 말하기는 속도가 붙을 때(MOVING) 끊는다
             DrivePhase.ABOUT_TO_MOVE -> previewJob?.cancel()
-            // 회전 대기: 말하기를 바로 멈춘다. 깜빡이를 끄고 계속 서 있으면 STOPPED로 돌아와 이어서 한다
+            // 우회전 대기: 말하기를 바로 멈춘다. 깜빡이를 끄고 계속 서 있으면 STOPPED로 돌아와 이어서 한다
             DrivePhase.TURN_WAIT -> {
                 previewJob?.cancel()
                 cancelPractice()
@@ -175,7 +177,8 @@ class DriveViewModel(
                     attempt = 0
                     reduce { copy(currentIndex = (currentIndex + 1) % phrases.size.coerceAtLeast(1)) }
                 }
-                saveProgress()
+                val saving = saveProgress()
+                if (phase == DrivePhase.PARKED) summarizeIfNew(saving)
             }
         }
     }
@@ -196,23 +199,33 @@ class DriveViewModel(
         if (set != _state.value.phraseSet) viewModelScope.launch { loadPhrases(set) }
     }
 
-    /** 운행이 끝났다(내림): 결과를 저장한 뒤 오늘 결과를 소리로 정리해 준다 */
+    /**
+     * 운행이 끝났다(내림): 저장만 한다. 소리로 정리하지 않는다.
+     * 문을 열 때는 보통 시동을 끈 뒤라 인포테인먼트가 꺼지는 중이어서 들리지 않는다(2026-11-01 사용자 지적).
+     * 정리는 P단에 넣는 순간에 한다 ([summarizeIfNew])
+     */
     private fun onTripEnded() {
-        val saving = saveProgress()
+        saveProgress()
+    }
+
+    /**
+     * P단에 넣었을 때 오늘 결과를 소리로 정리해 준다. 시동을 끄기 전이라 확실히 들린다.
+     * 지난번 정리 뒤로 새로 연습한 표현이 없으면 말하지 않는다(드라이브스루처럼 P단에 자주 넣어도 같은 말을 되풀이하지 않게)
+     */
+    private fun summarizeIfNew(saving: Job?) {
+        val count = _state.value.results.size
+        if (count == summarizedResultCount) return
+        summarizedResultCount = count
         viewModelScope.launch {
             saving?.join() // 연속 일수가 갱신된 뒤에 말한다
-            announce(farewell())
+            announce(summary())
         }
     }
 
-    private fun farewell(): String {
+    private fun summary(): String {
         val s = _state.value
         val streak = if (s.streak.days > 0) " 연속 ${s.streak.days}일째예요." else ""
-        return if (s.results.isEmpty()) {
-            "오늘은 연습한 표현이 없어요. 다음 운행에서 만나요."
-        } else {
-            "오늘 ${s.results.size}개 중 ${s.successCount}개 성공했어요.$streak 수고했어요."
-        }
+        return "오늘 ${s.results.size}개 중 ${s.successCount}개 성공했어요.$streak 수고했어요."
     }
 
     /** 짧은 안내 한마디. 음악은 소리만 줄이고, 끝나면 돌려준다 */
@@ -263,12 +276,11 @@ class DriveViewModel(
         if (practiceJob?.isActive == true) return
         if (finishedThisStop && _state.value.phase == DrivePhase.STOPPED_SHORT) return
 
-        // 정차 중에는 항상 짧은 표현만 말한다. 문장 전체는 주차 후 복습에서 읽는다.
         // 마이크에 음악이 섞이지 않도록 말하는 동안 음악을 잠깐 멈춘다
         audioFocus.acquire(FocusMode.PAUSE)
         practiceJob = viewModelScope.launch {
             var tryAgain = false
-            stopPractice(phrase, chunkOnly = true).collect { event ->
+            stopPractice(phrase).collect { event ->
                 when (event) {
                     PracticeEvent.Prompting -> reduce {
                         copy(stop = StopUi(StopUi.Step.PROMPTING, phrase = phrase, attempt = attempt + 1, maxAttempts = MAX_ATTEMPTS))
@@ -390,7 +402,7 @@ class DriveViewModel(
                 Log.d(TAG, "측정 시작 ${targets.size}개")
                 targets.forEachIndexed { index, phrase ->
                     reduce { copy(measureLabel = "측정 ${index + 1}/${targets.size}") }
-                    stopPractice(phrase, chunkOnly = true).collect { event ->
+                    stopPractice(phrase).collect { event ->
                         when (event) {
                             PracticeEvent.Prompting -> reduce { copy(stop = StopUi(StopUi.Step.PROMPTING, phrase = phrase)) }
                             PracticeEvent.Listening -> {
@@ -416,8 +428,8 @@ class DriveViewModel(
         }
     }
 
-    /** 주차 중에만 화면으로 문장 전체를 보며 다시 읽는다 */
-    private fun readAloud(phraseId: String) {
+    /** 주차 중에 오늘 표현 하나를 다시 말해 본다 */
+    private fun sayAgain(phraseId: String) {
         val phase = _state.value.phase
         if (phase != DrivePhase.PARKED && phase != DrivePhase.SESSION_END) return
         val phrase = _state.value.phrases.firstOrNull { it.id == phraseId } ?: return
@@ -426,7 +438,7 @@ class DriveViewModel(
         audioFocus.acquire(FocusMode.PAUSE)
         practiceJob = viewModelScope.launch {
             try {
-                stopPractice(phrase, chunkOnly = false).collect { event ->
+                stopPractice(phrase).collect { event ->
                     when (event) {
                         PracticeEvent.Listening -> playSound(SoundEffect.YOUR_TURN)
                         is PracticeEvent.Judged -> {

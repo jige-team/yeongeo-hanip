@@ -22,9 +22,10 @@ class StopPracticeUseCase(
     private val pickPraise: (List<String>) -> String = { it.random() },
 ) {
 
-    operator fun invoke(phrase: Phrase, chunkOnly: Boolean): Flow<PracticeEvent> = flow {
-        val target = if (chunkOnly) phrase.keyChunk else phrase.english
-        val meaning = if (chunkOnly) phrase.keyChunkKorean else phrase.korean
+    /** 항상 짧은 표현만 말한다. 문장 전체를 보여 주면 문장을 말해야 하는 것처럼 보였다(2026-11-01 사용자 결정) */
+    operator fun invoke(phrase: Phrase): Flow<PracticeEvent> = flow {
+        val target = phrase.keyChunk
+        val meaning = phrase.keyChunkKorean
 
         // 뜻을 먼저 듣고 영어를 들으면, 무슨 말을 하려는지 알고 따라 할 수 있다
         emit(PracticeEvent.Prompting)
@@ -64,7 +65,7 @@ class StopPracticeUseCase(
             speech.speak(target, Language.ENGLISH)
         }
 
-        emit(PracticeEvent.Finished(PracticeResult(phrase, chunkOnly, heard, judgement)))
+        emit(PracticeEvent.Finished(PracticeResult(phrase, heard, judgement)))
     }
 
     /** 틀렸을 때 한마디: 못 알아들었는지, 무엇으로 들렸는지 */

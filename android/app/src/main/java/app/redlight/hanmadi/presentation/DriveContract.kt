@@ -18,7 +18,7 @@ data class DriveState(
     val stop: StopUi = StopUi(),
     /** 오늘 정차 중에 말한 결과 (말한 순서) */
     val results: List<PracticeResult> = emptyList(),
-    /** 주차 후 다시 읽기 결과 (문장 id별) */
+    /** 주차 후 다시 말하기 결과 (표현 id별) */
     val reviewJudgements: Map<String, Judgement> = emptyMap(),
     val reviewingId: String? = null,
     val streak: Streak = Streak(0, 0),
@@ -58,8 +58,8 @@ data class StopUi(
 sealed interface DriveIntent {
     data object Start : DriveIntent
     data object PermissionsHandled : DriveIntent
-    /** 주차 상태에서 문장 하나를 보면서 다시 읽기 */
-    data class ReadAloud(val phraseId: String) : DriveIntent
+    /** 주차 상태에서 표현 하나를 다시 말하기 */
+    data class SayAgain(val phraseId: String) : DriveIntent
     /** 가짜 차량 조작 (디버그 패널) */
     data class Debug(val change: DriveSignal.() -> DriveSignal) : DriveIntent
     /** 인식률 측정: 주차 상태에서 표현 20개를 연달아 말한다 (디버그 빌드 전용, tools/measure_stt.sh) */

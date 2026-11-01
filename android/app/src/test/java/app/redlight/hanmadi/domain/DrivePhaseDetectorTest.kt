@@ -3,6 +3,7 @@ package app.redlight.hanmadi.domain
 import app.redlight.hanmadi.domain.model.DrivePhase
 import app.redlight.hanmadi.domain.model.DriveSignal
 import app.redlight.hanmadi.domain.model.Gear
+import app.redlight.hanmadi.domain.model.TurnSignal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -104,16 +105,22 @@ class DrivePhaseDetectorTest {
     }
 
     @Test
-    fun `서 있는데 방향지시등이 켜져 있으면 회전 대기라서 말하기를 쉰다`() {
+    fun `서 있는데 오른쪽 깜빡이가 켜져 있으면 우회전 대기라서 말하기를 쉰다`() {
         detector.update(braking, 0)
-        assertEquals(DrivePhase.TURN_WAIT, detector.update(braking.copy(turnSignalOn = true), 2_000))
+        assertEquals(DrivePhase.TURN_WAIT, detector.update(braking.copy(turnSignal = TurnSignal.RIGHT), 2_000))
         // 깜빡이를 끄고 계속 서 있으면 바로 정차로 돌아온다(기준 시간을 다시 기다리지 않는다)
         assertEquals(DrivePhase.STOPPED_SHORT, detector.update(braking, 2_500))
     }
 
     @Test
+    fun `왼쪽 깜빡이는 좌회전 신호 대기라서 그대로 정차로 보고 연습한다`() {
+        detector.update(braking, 0)
+        assertEquals(DrivePhase.STOPPED_SHORT, detector.update(braking.copy(turnSignal = TurnSignal.LEFT), 2_000))
+    }
+
+    @Test
     fun `달리는 중에는 방향지시등과 상관없이 MOVING`() {
-        assertEquals(DrivePhase.MOVING, detector.update(driving.copy(turnSignalOn = true), 1_000))
+        assertEquals(DrivePhase.MOVING, detector.update(driving.copy(turnSignal = TurnSignal.RIGHT), 1_000))
     }
 
     @Test

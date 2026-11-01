@@ -4,6 +4,7 @@ import app.redlight.hanmadi.R
 import app.redlight.hanmadi.domain.model.DrivePhase
 import app.redlight.hanmadi.domain.model.DriveSignal
 import app.redlight.hanmadi.domain.model.Gear
+import app.redlight.hanmadi.domain.model.TurnSignal
 import app.redlight.hanmadi.domain.model.Judgement
 import app.redlight.hanmadi.domain.model.Phrase
 import androidx.compose.animation.AnimatedContent
@@ -132,13 +133,13 @@ private fun ListenScreen(state: DriveState) {
     }
 }
 
-/** 회전 대기: 말하기를 쉰다는 것만 크게 알린다 */
+/** 우회전 대기: 말하기를 쉰다는 것만 크게 알린다 */
 @Composable
 private fun TurnWaitScreen() {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("깜빡이 켜짐", color = Palette.amber, fontSize = 64.sp, fontWeight = FontWeight.Bold)
+        Text("우회전 대기", color = Palette.amber, fontSize = 64.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(16.dp))
-        Text("회전을 기다릴 땐 쉬어요. 깜빡이를 끄면 이어서 해요", color = Palette.subtle, fontSize = 30.sp)
+        Text("보행자를 살필 땐 쉬어요. 깜빡이를 끄면 이어서 해요", color = Palette.subtle, fontSize = 30.sp)
     }
 }
 
@@ -160,7 +161,7 @@ private fun ProgressDots(state: DriveState, dotSize: Dp) {
     }
 }
 
-/** 신호 대기: 핵심 표현 하나만 크게, 아래에 뜻을 작게. 영어 문장 전체는 띄우지 않는다 */
+/** 신호 대기: 표현 하나만 크게, 아래에 뜻을 작게 */
 @Composable
 private fun SpeakScreen(state: DriveState) {
     val phrase = state.stop.phrase ?: state.current ?: return
@@ -247,14 +248,14 @@ private fun JudgementBadge(stop: StopUi, combo: Int) {
     }
 }
 
-/** 주차: 오늘 결과를 한 장으로 보여 주고, 문장 전체를 보며 다시 읽는다 */
+/** 주차: 오늘 결과를 한 장으로 보여 주고, 오늘 표현을 보며 다시 말해 본다 */
 @Composable
 private fun ReviewScreen(state: DriveState, onIntent: (DriveIntent) -> Unit) {
     LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ResultCard(state) }
         item {
             Text(
-                "주차 중에만 문장 전체를 보여 줘요. 보면서 소리 내 읽어 보세요.",
+                "오늘의 표현이에요. 주차 중에는 눌러서 다시 말해 볼 수 있어요.",
                 color = Palette.subtle,
                 fontSize = 24.sp,
                 modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
@@ -264,7 +265,7 @@ private fun ReviewScreen(state: DriveState, onIntent: (DriveIntent) -> Unit) {
             val judgement = state.reviewJudgements[phrase.id]
                 ?: state.results.lastOrNull { it.phrase.id == phrase.id }?.judgement
             ReviewRow(phrase, judgement, reading = state.reviewingId == phrase.id) {
-                onIntent(DriveIntent.ReadAloud(phrase.id))
+                onIntent(DriveIntent.SayAgain(phrase.id))
             }
         }
     }
@@ -320,8 +321,9 @@ private fun ReviewRow(phrase: Phrase, judgement: Judgement?, reading: Boolean, o
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(phrase.english, color = Palette.text, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
-            Text(phrase.korean, color = Palette.subtle, fontSize = 24.sp)
+            // 빨간불에서 말하는 표현 그대로 보여 준다. 예문을 보여 주면 문장을 말해야 하는 것처럼 보였다(2026-11-01 사용자 결정)
+            Text(phrase.keyChunk, color = Palette.text, fontSize = 36.sp, fontWeight = FontWeight.SemiBold)
+            Text(phrase.keyChunkKorean, color = Palette.subtle, fontSize = 24.sp)
         }
         val (mark, color) = when (judgement?.success) {
             true -> "성공" to Palette.green
@@ -335,7 +337,7 @@ private fun ReviewRow(phrase: Phrase, judgement: Judgement?, reading: Boolean, o
             colors = ButtonDefaults.buttonColors(containerColor = Palette.red),
             modifier = Modifier.height(72.dp).width(180.dp),
         ) {
-            Text(if (reading) "듣는 중" else "읽기", fontSize = 26.sp)
+            Text(if (reading) "듣는 중" else "말하기", fontSize = 26.sp)
         }
     }
 }
@@ -356,6 +358,6 @@ private fun DebugPanel(signal: DriveSignal, onIntent: (DriveIntent) -> Unit) {
         OutlinedButton(onClick = { onIntent(DriveIntent.Debug { copy(speedKmh = 0f) }) }) { Text("속도 0") }
         OutlinedButton(onClick = { onIntent(DriveIntent.Debug { copy(speedKmh = 40f) }) }) { Text("속도 40") }
         OutlinedButton(onClick = { onIntent(DriveIntent.Debug { copy(driverDoorOpen = !driverDoorOpen) }) }) { Text("문") }
-        OutlinedButton(onClick = { onIntent(DriveIntent.Debug { copy(turnSignalOn = !turnSignalOn) }) }) { Text("깜빡이") }
+        OutlinedButton(onClick = { onIntent(DriveIntent.Debug { copy(turnSignal = TurnSignal.entries[(turnSignal.ordinal + 1) % TurnSignal.entries.size]) }) }) { Text("깜빡이 ${signal.turnSignal}") }
     }
 }

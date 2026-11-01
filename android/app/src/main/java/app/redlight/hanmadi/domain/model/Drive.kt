@@ -2,6 +2,8 @@ package app.redlight.hanmadi.domain.model
 
 enum class Gear { PARK, REVERSE, NEUTRAL, DRIVE, UNKNOWN }
 
+enum class TurnSignal { OFF, LEFT, RIGHT }
+
 /** 운전 상태 판단에 쓰는 차량 신호 묶음 */
 data class DriveSignal(
     val gear: Gear = Gear.UNKNOWN,
@@ -9,8 +11,7 @@ data class DriveSignal(
     /** null이면 속도를 모른다(속도 퍼미션이 없거나 아직 값이 안 옴) */
     val speedKmh: Float? = null,
     val driverDoorOpen: Boolean = false,
-    /** 왼쪽이나 오른쪽 방향지시등이 켜져 있다 */
-    val turnSignalOn: Boolean = false,
+    val turnSignal: TurnSignal = TurnSignal.OFF,
 )
 
 /**
@@ -30,7 +31,7 @@ enum class DrivePhase {
     /** 2분 이상 정차 또는 N단. 하나씩 계속 말하기 */
     STOPPED_LONG,
 
-    /** 서 있지만 방향지시등이 켜져 있다. 회전을 기다리는 중이라 말하기를 쉰다 */
+    /** 서 있지만 오른쪽 방향지시등이 켜져 있다. 우회전하며 보행자를 봐야 해서 말하기를 쉰다 */
     TURN_WAIT,
 
     /** P단. 화면으로 읽기 복습 */

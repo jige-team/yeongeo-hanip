@@ -35,7 +35,7 @@
   {"id": "d04", "set": "daily", "en": "I'm just looking, thanks.", "ko": "그냥 구경하는 중이에요, 감사해요.", "chunk": "just looking", "chunkKo": "그냥 구경하는"},
   {"id": "d05", "set": "daily", "en": "Do you have this in a smaller size?", "ko": "이거 더 작은 사이즈 있나요?", "chunk": "smaller size", "chunkKo": "더 작은 사이즈"},
   {"id": "d06", "set": "daily", "en": "Can you recommend something?", "ko": "추천해 주실 만한 거 있나요?", "chunk": "recommend something", "chunkKo": "뭔가를 추천하다"},
-  {"id": "d07", "set": "daily", "en": "I'm running a little late.", "ko": "조금 늦을 것 같아요.", "chunk": "running late", "chunkKo": "늦어지다"},
+  {"id": "d07", "set": "daily", "en": "Sorry, I'm running late.", "ko": "미안해요, 좀 늦을 것 같아요.", "chunk": "running late", "chunkKo": "늦어지다"},
   {"id": "d08", "set": "daily", "en": "Let's grab a coffee sometime.", "ko": "언제 커피 한잔해요.", "chunk": "grab a coffee", "chunkKo": "커피 한잔하다"},
   {"id": "d09", "set": "daily", "en": "What do you feel like eating?", "ko": "뭐 먹고 싶어요?", "chunk": "feel like eating", "chunkKo": "먹고 싶다"},
   {"id": "d10", "set": "daily", "en": "It's on me today.", "ko": "오늘은 제가 살게요.", "chunk": "on me", "chunkKo": "내가 낸다"},

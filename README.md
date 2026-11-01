@@ -1,10 +1,10 @@
 # 영어한입
 
-**달릴 땐 듣고, 빨간불엔 말하고, 주차하면 읽는 차 안 영어 말하기 습관 앱**
+**달릴 땐 듣고, 빨간불엔 말하고, 주차하면 복습하는 차 안 영어 말하기 습관 앱**
 
 차가 멈추는 순간(빨간불)에 맞춰 짧은 영어 표현 하나를 소리 내 말하게 합니다.
 기어·브레이크·속도·방향지시등·운전석 문으로 "지금 무엇을 해도 안전한가"를 판단해,
-주행 중에는 듣기만, 정차 중에는 말하기, 주차 후에는 문장 전체 읽기로 바꿉니다.
+주행 중에는 듣기만, 정차 중에는 말하기, 주차 후에는 오늘 표현을 보며 다시 말하기로 바꿉니다.
 
 - 팀명: 지게
 - 플랫폼: Pleos Connect (Android Automotive OS), Kotlin · Jetpack Compose
@@ -31,6 +31,7 @@ Pleos 공식 문서의 [개발 환경 설정](https://document.pleos.ai/docs/con
 3. Device Manager → Automotive → **Pleos Connect v2.1.0**으로 AVD를 만듭니다 (RAM 4GB, Cold boot 권장).
 4. 에뮬레이터를 켜고, 부팅이 끝나면 시간대를 서울로 바꿉니다. 오후 2시 전에는 업무 영어, 그 뒤에는 일상 영어 세트가 나오기 때문입니다(기본 시간대는 미국 서부).
    ```bash
+   adb shell settings put global auto_time_zone 0   # 자동 시간대가 미국 서부로 되돌리지 않게 끔
    adb shell cmd alarm set-timezone Asia/Seoul
    ```
 
@@ -56,9 +57,10 @@ adb forward tcp:8088 tcp:8088   # 그 뒤 브라우저에서 http://127.0.0.1:80
 | 출발 | Gear **D** → **ACCEL** 누르고 있기 | 출발 인사, "주행 중", 다음 표현을 뜻 → 영어로 미리 듣기 |
 | 빨간불 | 속도가 붙은 뒤 **Brake Pedal 100%** | 2초 뒤 정차 화면: 표현과 뜻 → "띵" → 말하기 → 판정 |
 | 말하다가 출발 | Brake Pedal 0% → ACCEL | 속도가 붙는 즉시 마이크를 끄고 화면을 숨김 |
-| 회전 대기 | 정차 중 **Turn Signal State → Blink left** | "깜빡이 켜짐 · 회전을 기다릴 땐 쉬어요", 말하기 중단 |
-| 주차 | Gear **P** | 결과 카드, 오늘 문장 전체와 "읽기" |
-| 하차 | P단에서 **Door Position → Front left → Open** | 마무리 인사, 결과 저장 |
+| 좌회전 신호 대기 | 정차 중 **Turn Signal State → Blink left** | 그대로 정차로 보고 연습 (긴 빨간불) |
+| 우회전 대기 | 정차 중 **Turn Signal State → Blink right** | "우회전 대기 · 보행자를 살필 땐 쉬어요", 말하기 중단 |
+| 주차 | Gear **P** | 오늘 결과를 소리로 정리, 결과 카드, 오늘 표현 목록과 "말하기" |
+| 하차 | P단에서 **Door Position → Front left → Open** | 운행 끝, 결과 저장 (시동을 끈 뒤라 소리는 내지 않음) |
 
 > 에뮬레이터는 소리가 1~3초 늦고 에코 제거가 꺼져 있어, 앱이 읽어 준 소리가 마이크로 다시 들어갈 수 있습니다. **이어폰**을 쓰면 정확합니다.
 
@@ -79,7 +81,7 @@ adb forward tcp:8088 tcp:8088   # 그 뒤 브라우저에서 http://127.0.0.1:80
 | 기능 | SDK / API | 퍼미션 |
 |---|---|---|
 | 주행·정차·주차 판단 | Vehicle SDK `Gear`, `Brake` | `pleos.car.permission.CAR_DRIVE` |
-| 회전 대기 | Vehicle SDK `TurnSignal` | `pleos.car.permission.CAR_LIGHTS` |
+| 우회전 대기 | Vehicle SDK `TurnSignal` | `pleos.car.permission.CAR_LIGHTS` |
 | 운행 끝(하차) | Vehicle SDK `Door` | `pleos.car.permission.CAR_DOORS` |
 | 차량 속도 | AAOS `CarPropertyManager` (`PERF_VEHICLE_SPEED`) — Pleos SDK에 속도 API가 없음 | `android.car.permission.CAR_SPEED` |
 | 표현 들려주기 | TextToSpeech SDK (en-US, ko-KR) | `pleos.car.permission.TTS_SERVICE` |
@@ -110,7 +112,7 @@ Jetpack Compose + 클린 아키텍처 + MVI, 단일 모듈입니다.
 ```
 android/app/src/main/java/app/redlight/hanmadi/
 ├── domain/        순수 Kotlin. Android·Pleos SDK에 의존하지 않음
-│   ├── DrivePhaseDetector   차량 신호 → 운전 상태(주행/정차/회전 대기/주차…)
+│   ├── DrivePhaseDetector   차량 신호 → 운전 상태(주행/정차/우회전 대기/주차…)
 │   ├── TripTracker          운행 시작·끝 (운전석 문 기준)
 │   ├── AnswerJudge          인식된 말 vs 목표 표현 (핵심 단어 + 소리 기준 비교)
 │   └── StopPracticeUseCase  정차 중 한 번의 말하기: 뜻 → 영어 → 듣기 → 판정 → 피드백

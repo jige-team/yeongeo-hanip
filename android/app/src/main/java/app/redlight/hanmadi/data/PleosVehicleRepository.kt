@@ -2,6 +2,7 @@ package app.redlight.hanmadi.data
 
 import app.redlight.hanmadi.domain.model.DriveSignal
 import app.redlight.hanmadi.domain.model.Gear
+import app.redlight.hanmadi.domain.model.TurnSignal
 import app.redlight.hanmadi.domain.repository.VehicleRepository
 import ai.pleos.playground.vehicle.Vehicle
 import ai.pleos.playground.vehicle.api.model.area.DoorArea
@@ -41,14 +42,14 @@ class PleosVehicleRepository(private val context: Context) : VehicleRepository {
         brakePressed().withDefault("브레이크", false),
         speedKmh().withDefault("속도", null),
         driverDoorOpen().withDefault("문", false),
-        turnSignalOn().withDefault("방향지시등", false),
+        turnSignal().withDefault("방향지시등", TurnSignal.OFF),
     ) { values ->
         DriveSignal(
             gear = values[0] as Gear,
             brakePressed = values[1] as Boolean,
             speedKmh = values[2] as Float?,
             driverDoorOpen = values[3] as Boolean,
-            turnSignalOn = values[4] as Boolean,
+            turnSignal = values[4] as TurnSignal,
         )
     }.distinctUntilChanged()
 
@@ -107,18 +108,22 @@ class PleosVehicleRepository(private val context: Context) : VehicleRepository {
         awaitClose { api.unregisterDoorPosition(driverDoor, listener) }
     }
 
-    private fun turnSignalOn(): Flow<Boolean> = callbackFlow {
+    private fun turnSignal(): Flow<TurnSignal> = callbackFlow {
         val api = vehicle.getTurnSignal()
         val listener = object : TurnSignalStateListener {
-            override fun onTurnSignalStateUpdated(value: TurnSignalValue?) { trySend(value.isOn()) }
+            override fun onTurnSignalStateUpdated(value: TurnSignalValue?) { trySend(value.toDomain()) }
             override fun onFailed(e: Exception) { close(e) }
         }
-        api.getCurrentTurnSignalState({ trySend(it.isOn()) }, { close(it) })
+        api.getCurrentTurnSignalState({ trySend(it.toDomain()) }, { close(it) })
         api.registerTurnSignalState(listener)
         awaitClose { api.unregisterTurnSignalState(listener) }
     }
 
-    private fun TurnSignalValue?.isOn(): Boolean = this == TurnSignalValue.LEFT || this == TurnSignalValue.RIGHT
+    private fun TurnSignalValue?.toDomain(): TurnSignal = when (this) {
+        TurnSignalValue.LEFT -> TurnSignal.LEFT
+        TurnSignalValue.RIGHT -> TurnSignal.RIGHT
+        else -> TurnSignal.OFF
+    }
 
     /**
      * 처음 값을 정해 두고, 실패하면 기본값으로 돌린 뒤 3초마다 다시 연결한다.
