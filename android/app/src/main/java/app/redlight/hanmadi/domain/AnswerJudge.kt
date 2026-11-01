@@ -15,6 +15,10 @@ import app.redlight.hanmadi.domain.model.Judgement
  * - 소리가 비슷하면 같은 단어로 본다(4글자 이상 핵심 단어만). 듀오링고가 글자 대신 발음으로 채점하도록 바꾼 것과 같은 방향
  *   근거: 사용자 녹음에서 meeting → "meaning", slowly → "solely"처럼 한국어 화자에게 흔한 소리 차이로 실패가 쌓였다
  *
+ * - 숫자는 영어 단어로 바꿔 비교한다. 인식기가 "ten minutes"를 "10 minutes"로 적었다(2026-11-01 사용자 지적)
+ * - 들린 단어가 3글자 이상이고 목표 단어의 앞부분이면 같은 단어로 본다(min = minutes).
+ *   근거: 에뮬레이터는 소리가 1~3초 늦게 들어가서 인식기가 약 4초에 귀를 닫을 때 단어 끝이 잘렸다("10 min")
+ *
  * 틀렸을 때는 놓친 핵심 단어와 가장 비슷하게 들린 단어를 짝지어 알려 준다(misheard). "meeting이 meaning으로 들렸어요"
  */
 object AnswerJudge {
@@ -51,13 +55,27 @@ object AnswerJudge {
         return Judgement(success, missingWords = missing, misheard = misheard)
     }
 
-    /** 소문자로 바꾸고 문장부호와 아포스트로피를 없앤다. let's와 lets를 같게 본다 */
+    /** 소문자로 바꾸고 문장부호와 아포스트로피를 없앤다. let's와 lets를 같게 본다. 두 자리까지의 숫자는 영어 단어로 바꾼다 */
     internal fun words(text: String): List<String> =
         text.lowercase()
             .replace(Regex("['’]"), "")
             .replace(Regex("[^a-z0-9 ]"), " ")
             .split(' ')
             .filter { it.isNotBlank() }
+            .flatMap { if (it.length <= 2 && it.all(Char::isDigit)) numberWords(it.toInt()) else listOf(it) }
+
+    private val ONES = listOf(
+        "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+    )
+    private val TENS = listOf("", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety")
+
+    /** 0~99를 영어 단어로. 25 → twenty five */
+    private fun numberWords(n: Int): List<String> = when {
+        n < 20 -> listOf(ONES[n])
+        n % 10 == 0 -> listOf(TENS[n / 10])
+        else -> listOf(TENS[n / 10], ONES[n % 10])
+    }
 
     internal fun sameWord(target: String, heard: String): Boolean {
         if (target == heard) return true
@@ -65,6 +83,8 @@ object AnswerJudge {
         if (target in FUNCTION_WORDS) return false
         if (stem(target) == stem(heard)) return true
         if (maxOf(target.length, heard.length) >= 4 && editDistance(target, heard) <= 1) return true
+        // 단어 끝이 잘려 들렸다(min = minutes). 너무 짧으면 아무 단어나 맞게 되므로 3글자 이상만
+        if (heard.length >= 3 && target.length > heard.length && target.startsWith(heard)) return true
         return soundsAlike(target, heard)
     }
 

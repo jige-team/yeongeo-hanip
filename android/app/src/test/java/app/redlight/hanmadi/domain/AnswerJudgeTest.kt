@@ -122,4 +122,19 @@ class AnswerJudgeTest {
     fun `비슷한 단어가 없으면 짝짓지 않는다`() {
         assertTrue(AnswerJudge.judge("circle back", "back").misheard.isEmpty())
     }
+
+    @Test
+    fun `인식기가 숫자로 적어도 영어 단어로 맞힌다`() {
+        assertTrue(AnswerJudge.judge("ten minutes", "10 minutes").success)
+        assertTrue(AnswerJudge.judge("table for two", "table for 2").success)
+        assertEquals(listOf("twenty", "five"), AnswerJudge.words("25"))
+    }
+
+    @Test
+    fun `단어 끝이 잘려 들려도 3글자 이상이면 맞힌다`() {
+        assertTrue(AnswerJudge.judge("ten minutes", "10 min").success)
+        // 한 글자만 들린 것은 잘린 것으로 보지 않는다
+        assertFalse(AnswerJudge.judge("how long", "how l").success)
+        assertFalse(AnswerJudge.judge("ten minutes", "10 million").success)
+    }
 }

@@ -26,6 +26,10 @@ data class DriveState(
     val debugSignal: DriveSignal? = null,
     /** 측정 모드 진행 표시 (예: "측정 3/20"). null이면 측정 중이 아니다 */
     val measureLabel: String? = null,
+    /** 운전자가 정차 화면에서 연습을 멈췄다. 다시 시작할 때까지 듣기·말하기·미리 듣기를 하지 않는다 */
+    val paused: Boolean = false,
+    /** 오늘 표현을 모두 끝냈다(맞혔거나 기회를 다 씀). 더 말하게 하지 않고 끝 화면을 보여 준다 */
+    val allDone: Boolean = false,
 ) {
     val current: Phrase? get() = phrases.getOrNull(currentIndex)
     val successCount: Int get() = results.count { it.judgement.success }
@@ -60,10 +64,14 @@ sealed interface DriveIntent {
     data object PermissionsHandled : DriveIntent
     /** 주차 상태에서 표현 하나를 다시 말하기 */
     data class SayAgain(val phraseId: String) : DriveIntent
+    /** 정차 화면의 "연습 잠깐 멈춤" / "다시 시작" */
+    data object TogglePause : DriveIntent
     /** 가짜 차량 조작 (디버그 패널) */
     data class Debug(val change: DriveSignal.() -> DriveSignal) : DriveIntent
     /** 인식률 측정: 주차 상태에서 표현 20개를 연달아 말한다 (디버그 빌드 전용, tools/measure_stt.sh) */
     data object StartMeasure : DriveIntent
+    /** 오늘 표현 수를 줄인다 (디버그 빌드 전용: 끝 화면 시험·시연) */
+    data class LimitPhrases(val count: Int) : DriveIntent
 }
 
 sealed interface DriveSideEffect {

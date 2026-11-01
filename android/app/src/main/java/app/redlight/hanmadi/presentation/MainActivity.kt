@@ -65,15 +65,18 @@ class MainActivity : ComponentActivity() {
      * 디버그 전용 진단 (tools/measure_stt.sh, tools/probe_stt.sh)
      * - --ez measure true: 마이크로 표현 20개를 연달아 측정
      * - --ez probe true: 녹음 파일을 마이크 없이 엔진에 바로 넣어 측정
+     * - --ei phrases 3: 오늘 표현 수를 줄인다. 끝 화면을 10개 다 말하지 않고 시험·시연하려고
      */
     private fun handleMeasure(intent: Intent?) {
         if (!BuildConfig.DEBUG || intent == null) return
         if (intent.getBooleanExtra(EXTRA_MEASURE, false)) viewModel.onIntent(DriveIntent.StartMeasure)
         if (intent.getBooleanExtra(EXTRA_PROBE, false)) lifecycleScope.launch { FileSttProbe(applicationContext).run() }
+        intent.getIntExtra(EXTRA_PHRASES, 0).takeIf { it > 0 }?.let { viewModel.onIntent(DriveIntent.LimitPhrases(it)) }
     }
 
     private companion object {
         const val EXTRA_MEASURE = "measure"
         const val EXTRA_PROBE = "probe"
+        const val EXTRA_PHRASES = "phrases"
     }
 }

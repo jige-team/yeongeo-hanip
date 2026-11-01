@@ -55,14 +55,33 @@ adb forward tcp:8088 tcp:8088   # 그 뒤 브라우저에서 http://127.0.0.1:80
 | 해 볼 것 | 콘솔 조작 | 앱 반응 |
 |---|---|---|
 | 출발 | Gear **D** → **ACCEL** 누르고 있기 | 출발 인사, "주행 중", 다음 표현을 뜻 → 영어로 미리 듣기 |
-| 빨간불 | 속도가 붙은 뒤 **Brake Pedal 100%** | 2초 뒤 정차 화면: 표현과 뜻 → "띵" → 말하기 → 판정 |
+| 빨간불 | 속도가 붙은 뒤 **Brake Pedal 100%** | 2초 뒤 정차 화면: 표현과 뜻 → "띵" → 말하기 → 판정. 틀리면 최대 3번 다시, 서 있는 동안 다음 표현으로 이어짐 |
+| 잠깐 멈춤 | 정차 화면의 **"연습 잠깐 멈춤"** 버튼 | 마이크와 소리를 끄고 "다시 시작"을 누를 때까지 쉼 |
 | 말하다가 출발 | Brake Pedal 0% → ACCEL | 속도가 붙는 즉시 마이크를 끄고 화면을 숨김 |
 | 좌회전 신호 대기 | 정차 중 **Turn Signal State → Blink left** | 그대로 정차로 보고 연습 (긴 빨간불) |
 | 우회전 대기 | 정차 중 **Turn Signal State → Blink right** | "우회전 대기 · 보행자를 살필 땐 쉬어요", 말하기 중단 |
+| 오늘 표현 다 함 | 10개를 모두 말할 때까지 정차 | "오늘 10개를 모두 했어요"와 결과 카드 |
 | 주차 | Gear **P** | 오늘 결과를 소리로 정리, 결과 카드, 오늘 표현 목록과 "말하기" |
 | 하차 | P단에서 **Door Position → Front left → Open** | 운행 끝, 결과 저장 (시동을 끈 뒤라 소리는 내지 않음) |
 
 > 에뮬레이터는 소리가 1~3초 늦고 에코 제거가 꺼져 있어, 앱이 읽어 준 소리가 마이크로 다시 들어갈 수 있습니다. **이어폰**을 쓰면 정확합니다.
+
+---
+
+## 화면과 시연 영상
+
+- 시연 영상(59초): [`docs/demo/yeongeo-hanip_demo.mp4`](docs/demo/yeongeo-hanip_demo.mp4)
+  - 에뮬레이터 화면 녹화입니다. 에뮬레이터 녹화가 소리를 군데군데 빠뜨려서, 소리는 앱 로그에 남은 실제 문장과 시각에 맞춰 합성 음성으로 다시 입혔습니다.
+  - 시연 시간을 줄이려고 디버그 빌드에서 오늘 표현 수를 3개로 줄여 찍었습니다(`--ei phrases 3`). 제출용 빌드는 하루 10개입니다.
+- 화면 캡처(제출용 빌드): [`docs/screenshots/`](docs/screenshots/)
+
+| 정차: 표현과 뜻 | 말할 차례 | 틀렸을 때 |
+|---|---|---|
+| ![](docs/screenshots/01_stop_prompt.png) | ![](docs/screenshots/02_listening.png) | ![](docs/screenshots/03_retry.png) |
+| **잠깐 멈춤** | **우회전 대기** | **주행 중** |
+| ![](docs/screenshots/04_paused.png) | ![](docs/screenshots/05_turn_wait.png) | ![](docs/screenshots/06_driving.png) |
+| **주차 후 복습** | | |
+| ![](docs/screenshots/07_parked.png) | | |
 
 ---
 

@@ -67,8 +67,6 @@ class DriveViewModel(
     private var previewJob: Job? = null
     private var practiceJob: Job? = null
     private var previewedIndex = -1
-    /** 이번 정차에서 표현 하나를 끝냈는지 (맞혔거나 기회를 다 씀) */
-    private var finishedThisStop = false
     /** 지금 표현을 끝까지 말한 횟수. 출발해도 유지해서 다음 정차에 이어서 한다 */
     private var attempt = 0
     /** 틀려서 다시 말할 표현의 결과가 results 맨 끝에 있다 */
@@ -97,8 +95,13 @@ class DriveViewModel(
             }
             DriveIntent.PermissionsHandled -> start()
             is DriveIntent.SayAgain -> sayAgain(intent.phraseId)
+            DriveIntent.TogglePause -> togglePause()
             is DriveIntent.Debug -> fakeVehicle?.set(intent.change)
             DriveIntent.StartMeasure -> startMeasure()
+            is DriveIntent.LimitPhrases -> {
+                phraseLimit = intent.count
+                reduce { copy(phrases = phrases.take(intent.count), currentIndex = 0, allDone = false) }
+            }
         }
     }
 
@@ -137,9 +140,6 @@ class DriveViewModel(
     }
 
     private fun onPhaseChanged(phase: DrivePhase, previous: DrivePhase) {
-        // 새 정차가 시작될 때만 "이번 정차에서 끝냄"을 지운다.
-        // 회전 대기·출발 직전은 같은 정차 안이라 지우지 않는다
-        if (phase == DrivePhase.MOVING || phase == DrivePhase.PARKED || phase == DrivePhase.SESSION_END) finishedThisStop = false
         // 운행의 시작·끝은 P단만이 아니라 운전석 문으로 가른다 (TripTracker).
         // 앱을 켠 직후 기어 값이 오기 전의 MOVING은 "애매하면 주행 중" 규칙 때문이라 운행 시작으로 세지 않는다
         // (2026-11-01 실측: 이것 때문에 앱을 켜자마자 마무리 인사가 나왔다)
@@ -184,8 +184,8 @@ class DriveViewModel(
     }
 
     private suspend fun loadPhrases(set: PhraseSet) {
-        val today = phrases.todaysPhrases(set)
-        reduce { copy(phraseSet = set, phrases = today, currentIndex = 0) }
+        val today = phrases.todaysPhrases(set).let { list -> phraseLimit?.let { list.take(it) } ?: list }
+        reduce { copy(phraseSet = set, phrases = today, currentIndex = 0, allDone = false) }
     }
 
     /**
@@ -247,6 +247,7 @@ class DriveViewModel(
     private fun previewNextIfNeeded() {
         val index = _state.value.currentIndex
         val phrase = _state.value.current ?: return
+        if (!canPractice) return
         if (previewedIndex == index || previewJob?.isActive == true || practiceJob?.isActive == true) return
         previewedIndex = index
         // 다음 정차에서 말할 짧은 표현을 뜻 → 영어 순서로 미리 들려준다. 그동안 음악은 소리만 줄인다
@@ -269,12 +270,14 @@ class DriveViewModel(
     /**
      * 정차 중 말하기 한 번을 시작한다.
      * - 틀리면 놓친 단어를 들려준 뒤 같은 표현을 다시 말한다 (최대 [MAX_ATTEMPTS]번)
-     * - 맞히거나 기회를 다 쓰면: 짧은 정차는 거기서 끝, 긴 정차는 다음 표현으로 이어 간다
+     * - 맞히거나 기회를 다 쓰면: 아직 서 있으면 다음 표현으로 이어 간다.
+     *   처음에는 짧은 정차에 표현 하나만 했는데, 서 있는데도 넘어가지 않아 멈춘 것처럼 보였다(2026-11-01 사용자 결정).
+     *   출발하면 이 Job을 바로 취소하므로 안전 규칙은 그대로다
      */
     private fun startPracticeIfAllowed() {
         val phrase = _state.value.current ?: return
+        if (!canPractice) return
         if (practiceJob?.isActive == true) return
-        if (finishedThisStop && _state.value.phase == DrivePhase.STOPPED_SHORT) return
 
         // 마이크에 음악이 섞이지 않도록 말하는 동안 음악을 잠깐 멈춘다
         audioFocus.acquire(FocusMode.PAUSE)
@@ -302,25 +305,23 @@ class DriveViewModel(
                         // 같은 표현을 다시 말한 결과는 앞 결과를 바꾼다. 오늘 기록은 표현 하나에 하나다
                         val replacesLast = hasPendingResult
                         hasPendingResult = tryAgain
-                        if (!tryAgain) {
-                            attempt = 0
-                            finishedThisStop = true
-                        }
+                        if (!tryAgain) attempt = 0
                         reduce {
                             copy(
                                 results = (if (replacesLast) results.dropLast(1) else results) + event.result,
                                 currentIndex = if (tryAgain) currentIndex else (currentIndex + 1) % phrases.size.coerceAtLeast(1),
                             )
                         }
+                        if (!tryAgain) markAllDoneIfFinished()
                     }
                 }
             }
-            if (tryAgain || _state.value.phase == DrivePhase.STOPPED_LONG) {
-                // 다음 시도까지 음악은 멈춘 채로 둔다. 1.5초 틈에 음악이 켜졌다 꺼지면 더 거슬린다
+            if (_state.value.phase.isStopped) {
+                // 다시 말하기든 다음 표현이든, 서 있는 동안 음악은 멈춘 채로 둔다. 1.5초 틈에 음악이 켜졌다 꺼지면 더 거슬린다
                 delay(NEXT_PHRASE_PAUSE_MILLIS)
                 // 지금 이 Job이 아직 practiceJob이라 비워 둬야 다음 시도를 시작할 수 있다
                 practiceJob = null
-                if (_state.value.phase.isStopped) startPracticeIfAllowed()
+                if (_state.value.phase.isStopped && canPractice) startPracticeIfAllowed() else audioFocus.release()
             } else {
                 audioFocus.release()
             }
@@ -351,6 +352,34 @@ class DriveViewModel(
 
     private fun playSound(effect: SoundEffect) {
         viewModelScope.launch { sound.play(effect) }
+    }
+
+    /** 디버그 전용 표현 수 제한(LimitPhrases). 세트가 바뀌어 다시 불러올 때도 지킨다 */
+    private var phraseLimit: Int? = null
+
+    /** 멈췄거나 오늘 표현을 다 끝냈으면 더 말하게 하지 않는다 */
+    private val canPractice: Boolean get() = !_state.value.paused && !_state.value.allDone
+
+    /** 오늘 표현마다 결과가 하나씩 생겼으면 끝 화면으로 넘어간다. 처음으로 돌아가 같은 표현을 또 시키지 않는다 */
+    private fun markAllDoneIfFinished() {
+        val s = _state.value
+        val done = s.phrases.isNotEmpty() && s.phrases.all { phrase -> s.results.any { it.phrase.id == phrase.id } }
+        if (done) reduce { copy(allDone = true) }
+    }
+
+    /**
+     * 정차 화면에서 연습을 잠깐 멈추거나 다시 시작한다.
+     * 멈추면 듣던 마이크와 들려주던 소리를 바로 끄고, 다시 시작할 때까지 미리 듣기도 하지 않는다
+     */
+    private fun togglePause() {
+        val paused = !_state.value.paused
+        reduce { copy(paused = paused) }
+        if (paused) {
+            previewJob?.cancel()
+            cancelPractice()
+        } else if (_state.value.phase.isStopped) {
+            startPracticeIfAllowed()
+        }
     }
 
     private fun cancelPractice() {

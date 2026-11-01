@@ -75,14 +75,22 @@ fun DriveScreen(state: DriveState, onIntent: (DriveIntent) -> Unit) {
         Spacer(Modifier.height(24.dp))
         Box(Modifier.weight(1f).fillMaxWidth()) {
             // 측정 모드는 주차 중이지만 정차 연습 화면을 그대로 쓴다
-            val screen = if (state.measureLabel != null) Screen.SPEAK else state.phase.toScreen()
+            val screen = when {
+                state.measureLabel != null -> Screen.SPEAK
+                // 서 있을 때만 바꾼다. 달리는 중에는 "주행 중" 화면을 그대로 둔다
+                state.phase.isStopped && state.allDone -> Screen.DONE
+                state.phase.isStopped && state.paused -> Screen.PAUSED
+                else -> state.phase.toScreen()
+            }
             AnimatedContent(targetState = screen, label = "phase") { screen ->
                 when (screen) {
                     Screen.LISTEN -> ListenScreen(state)
-                    Screen.SPEAK -> SpeakScreen(state)
+                    Screen.SPEAK -> SpeakScreen(state, onIntent)
                     Screen.HIDDEN -> Box(Modifier.fillMaxSize())
                     Screen.REST -> TurnWaitScreen()
                     Screen.REVIEW -> ReviewScreen(state, onIntent)
+                    Screen.PAUSED -> PausedScreen(onIntent)
+                    Screen.DONE -> AllDoneScreen(state)
                 }
             }
         }
@@ -90,7 +98,7 @@ fun DriveScreen(state: DriveState, onIntent: (DriveIntent) -> Unit) {
     }
 }
 
-private enum class Screen { LISTEN, SPEAK, HIDDEN, REST, REVIEW }
+private enum class Screen { LISTEN, SPEAK, HIDDEN, REST, REVIEW, PAUSED, DONE }
 
 /** 상태별 화면 규칙: docs/design/drive-phase-rules.md */
 private fun DrivePhase.toScreen(): Screen = when (this) {
@@ -123,7 +131,12 @@ private fun ListenScreen(state: DriveState) {
         Text("주행 중", color = Palette.text, fontSize = 64.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(16.dp))
         Text(
-            if (state.isJam) "정체 구간이에요. 조금 더 오래 서면 말해요" else "다음 빨간불에서 따라 말해요",
+            when {
+                state.allDone -> "오늘 표현을 모두 마쳤어요"
+                state.paused -> "연습을 멈췄어요. 정차하면 다시 시작할 수 있어요"
+                state.isJam -> "정체 구간이에요. 조금 더 오래 서면 말해요"
+                else -> "다음 빨간불에서 따라 말해요"
+            },
             color = Palette.subtle,
             fontSize = 30.sp,
         )
@@ -163,7 +176,7 @@ private fun ProgressDots(state: DriveState, dotSize: Dp) {
 
 /** 신호 대기: 표현 하나만 크게, 아래에 뜻을 작게 */
 @Composable
-private fun SpeakScreen(state: DriveState) {
+private fun SpeakScreen(state: DriveState, onIntent: (DriveIntent) -> Unit) {
     val phrase = state.stop.phrase ?: state.current ?: return
     val number = state.phrases.indexOf(phrase) + 1
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -188,6 +201,47 @@ private fun SpeakScreen(state: DriveState) {
                 StopUi.Step.DONE -> JudgementBadge(state.stop, combo = state.combo)
             }
         }
+        if (state.measureLabel == null) {
+            Spacer(Modifier.height(32.dp))
+            // 서 있을 때만 보이는 버튼이라 운전 중 조작은 없다. 장갑 낀 손으로도 누르게 크게 둔다
+            BigButton("연습 잠깐 멈춤", Palette.surface) { onIntent(DriveIntent.TogglePause) }
+        }
+    }
+}
+
+/** 정차 화면 아래의 큰 버튼 */
+@Composable
+private fun BigButton(label: String, color: Color, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(containerColor = color),
+        modifier = Modifier.height(96.dp).width(420.dp),
+    ) {
+        Text(label, color = Palette.text, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** 연습을 멈춘 동안: 마이크와 소리는 꺼져 있다. 다시 시작하면 지금 표현부터 이어 간다 */
+@Composable
+private fun PausedScreen(onIntent: (DriveIntent) -> Unit) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("연습을 멈췄어요", color = Palette.text, fontSize = 64.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(16.dp))
+        Text("마이크와 소리를 껐어요", color = Palette.subtle, fontSize = 30.sp)
+        Spacer(Modifier.height(48.dp))
+        BigButton("다시 시작", Palette.red) { onIntent(DriveIntent.TogglePause) }
+    }
+}
+
+/** 오늘 표현을 모두 끝냈을 때: 처음으로 돌아가지 않고 오늘 결과를 보여 준다 */
+@Composable
+private fun AllDoneScreen(state: DriveState) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("오늘 ${state.phrases.size}개를 모두 했어요", color = Palette.green, fontSize = 64.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(12.dp))
+        Text("주차하면 오늘 표현을 다시 보고 말해 볼 수 있어요", color = Palette.subtle, fontSize = 28.sp)
+        Spacer(Modifier.height(40.dp))
+        ResultCard(state)
     }
 }
 
@@ -240,7 +294,7 @@ private fun JudgementBadge(stop: StopUi, combo: Int) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                if (stop.willRetry) "한 번 더 해 봐요" else "다음 빨간불에서 다른 표현으로 넘어가요",
+                if (stop.willRetry) "한 번 더 해 봐요" else "다음 표현으로 넘어가요",
                 color = Palette.subtle,
                 fontSize = 28.sp,
             )
