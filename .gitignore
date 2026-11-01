@@ -1,0 +1,24 @@
+# 제출 저장소에 올리지 않는 것
+
+# 개발용 내부 문서·도구 (개인 환경 경로와 메모가 들어 있다)
+/CLAUDE.md
+/.claude/
+/spike/
+
+# 기획서와 접수양식: 01번 개인정보와 내부 검토 메모가 있다(블라인드 심사). 이메일로만 제출한다
+docs/proposal/
+
+# 비밀정보 (핵심 규칙 10)
+android/local.properties
+*.keystore
+*.jks
+
+# 빌드 산출물
+android/.gradle/
+android/build/
+android/app/build/
+android/.kotlin/
+android/tools/probe_out/
+*.iml
+.idea/
+.DS_Store

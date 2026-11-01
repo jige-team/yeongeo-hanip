@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.automotive" android:required="true" />
+
+    <!-- Pleos SDK: 문서 퍼미션 표에 있는 것만 선언한다 (CLAUDE.md 핵심 규칙 7) -->
+    <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
+    <uses-permission android:name="pleos.car.permission.CAR_DOORS" />
+    <!-- 방향지시등: 회전을 기다리는 동안 말하기를 쉬려고 읽는다 -->
+    <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />
+    <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
+
+    <!-- 차량 속도: Pleos SDK에 없어서 AAOS 표준 퍼미션을 쓴다. App Market 승인 여부는 미확인 -->
+    <uses-permission android:name="android.car.permission.CAR_SPEED" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <application
+        android:name=".HanmadiApp"
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <uses-library android:name="android.car" android:required="false" />
+
+        <activity
+            android:name=".presentation.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <!-- 화면은 하나만 둔다. 여러 개가 겹치면 화면마다 연습이 돌아 마이크 요청이 부딪힌다(2026-11-01 실측) -->
+            <!-- 정차·주행 중에도 화면을 유지하려면 주의 분산 최적화 대상으로 선언해야 한다(AAOS) -->
+            <meta-data android:name="distractionOptimized" android:value="true" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
